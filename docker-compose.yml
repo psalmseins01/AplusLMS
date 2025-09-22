@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # A+ LMS Application (Development)
+  aplus-lms-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://aplus_user:aplus_password@postgres:5432/aplus_lms
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+      - redis
+    command: pnpm dev
+
+  # PostgreSQL Database (Future backend)
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: aplus_lms
+      POSTGRES_USER: aplus_user
+      POSTGRES_PASSWORD: aplus_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aplus_user -d aplus_lms"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache (Future backend)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Production Build (for testing)
+  aplus-lms-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: aplus-lms-network
